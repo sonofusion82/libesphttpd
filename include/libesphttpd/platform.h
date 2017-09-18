@@ -4,18 +4,17 @@
 #ifdef FREERTOS
 #include <libesphttpd/esp.h>
 
-#ifdef ESP32
 #include "freertos/FreeRTOS.h"
 #include "freertos/timers.h"
-#else
-#include "FreeRTOS.h"
-#include "timers.h"
-#endif
 
 //#include "esp_timer.h"
 typedef struct RtosConnType RtosConnType;
 typedef RtosConnType* ConnTypePtr;
+#ifdef ESP32
 typedef TimerHandle_t HttpdPlatTimerHandle;
+#else
+typedef xTimerHandle HttpdPlatTimerHandle;
+#endif
 
 #ifndef ESP32 //esp32 does not need this because it can map flash into D-port memory
 #define httpd_printf(fmt, ...) do {	\
@@ -29,7 +28,7 @@ typedef TimerHandle_t HttpdPlatTimerHandle;
 #define ICACHE_FLASH_ATTR
 #endif
 
-#elif linux
+#elif defined(linux)
 
 #include <stdbool.h>
 typedef struct RtosConnType RtosConnType;

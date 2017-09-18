@@ -32,6 +32,7 @@ Thanks to my collague at Espressif for writing the foundations of this code.
 #include "freertos/task.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
+#include "freertos/timers.h"
 #endif
 
 #ifndef linux
@@ -53,7 +54,7 @@ static pthread_mutex_t httpdMux;
 static xQueueHandle httpdMux;
 #endif
 
-#if CONFIG_ESPHTTPD_SSL_SUPPORT
+#ifdef CONFIG_ESPHTTPD_SSL_SUPPORT
 #include "openssl/ssl.h"
 #ifdef linux
 #include "openssl/err.h"
@@ -68,7 +69,7 @@ struct  RtosConnType{
 	int needsClose;
 	int port;
 	char ip[4];
-#if CONFIG_ESPHTTPD_SSL_SUPPORT
+#ifdef CONFIG_ESPHTTPD_SSL_SUPPORT
 	SSL *ssl;
 #endif
 };
@@ -77,7 +78,7 @@ static RtosConnType rconn[HTTPD_MAX_CONNECTIONS];
 
 int ICACHE_FLASH_ATTR httpdPlatSendData(ConnTypePtr conn, char *buff, int len) {
 	conn->needWriteDoneNotif=1;
-#if CONFIG_ESPHTTPD_SSL_SUPPORT
+#ifdef CONFIG_ESPHTTPD_SSL_SUPPORT
 	return (SSL_write(conn->ssl, buff, len) >= 0);
 #else
 	return (write(conn->fd, buff, len)>=0);
@@ -117,7 +118,7 @@ void closeConnection(RtosConnType *rconn)
 {
 	httpdDisconCb(rconn, rconn->ip, rconn->port);
 
-#if CONFIG_ESPHTTPD_SSL_SUPPORT
+#ifdef CONFIG_ESPHTTPD_SSL_SUPPORT
 	int retval;
 	retval = SSL_shutdown(rconn->ssl);
 	if(retval == 1)
@@ -136,14 +137,14 @@ void closeConnection(RtosConnType *rconn)
 	close(rconn->fd);
 	rconn->fd=-1;
 
-#if CONFIG_ESPHTTPD_SSL_SUPPORT
+#ifdef CONFIG_ESPHTTPD_SSL_SUPPORT
 	SSL_free(rconn->ssl);
 	httpd_printf("SSL_free() complete\n");
 	rconn->ssl = 0;
 #endif
 }
 
-#if CONFIG_ESPHTTPD_SSL_SUPPORT
+#ifdef CONFIG_ESPHTTPD_SSL_SUPPORT
 static SSL_CTX* sslCreateContext()
 {
 	int ret;
@@ -237,7 +238,7 @@ static void platHttpServerTask(void *pvParameters) {
 #endif
 	server_addr.sin_port = htons(httpPort); /* Local port */
 
-#if CONFIG_ESPHTTPD_SSL_SUPPORT
+#ifdef CONFIG_ESPHTTPD_SSL_SUPPORT
 	ctx = sslCreateContext();
 	if(!ctx)
 	{
@@ -337,7 +338,7 @@ static void platHttpServerTask(void *pvParameters) {
 				rconn[x].needWriteDoneNotif=0;
 				rconn[x].needsClose=0;
 
-#if CONFIG_ESPHTTPD_SSL_SUPPORT
+#ifdef CONFIG_ESPHTTPD_SSL_SUPPORT
 				httpd_printf("SSL server create ......\n");
 				rconn[x].ssl = SSL_new(ctx);
 				if (!rconn[x].ssl) {
@@ -391,7 +392,7 @@ static void platHttpServerTask(void *pvParameters) {
 						httpdDisconCb(&rconn[x], rconn[x].ip, rconn[x].port);
 						closeConnection(&rconn[x]);
 					}
-#if CONFIG_ESPHTTPD_SSL_SUPPORT
+#ifdef CONFIG_ESPHTTPD_SSL_SUPPORT
 					ret = SSL_read(rconn[x].ssl, precvbuf, RECV_BUF_SIZE - 1);
 #else
 					ret = recv(rconn[x].fd, precvbuf, RECV_BUF_SIZE,0);
@@ -491,21 +492,25 @@ void httpdPlatTimerDelete(HttpdPlatTimerHandle handle) {
 }
 #else
 HttpdPlatTimerHandle httpdPlatTimerCreate(const char *name, int periodMs, int autoreload, void (*callback)(void *arg), void *ctx) {
-	TimerHandle_t ret;
+	HttpdPlatTimerHandle ret;
+#ifdef ESP32
 	ret=xTimerCreate(name, pdMS_TO_TICKS(periodMs), autoreload?pdTRUE:pdFALSE, ctx, callback);
+#else
+	ret=xTimerCreate((const signed char * const)name, (periodMs / portTICK_RATE_MS), autoreload?pdTRUE:pdFALSE, ctx, callback);
+#endif
 	return (HttpdPlatTimerHandle)ret;
 }
 
 void httpdPlatTimerStart(HttpdPlatTimerHandle timer) {
-	xTimerStart((TimerHandle_t)timer, 0);
+	xTimerStart((HttpdPlatTimerHandle)timer, 0);
 }
 
 void httpdPlatTimerStop(HttpdPlatTimerHandle timer) {
-	xTimerStop((TimerHandle_t)timer, 0);
+	xTimerStop((HttpdPlatTimerHandle)timer, 0);
 }
 
 void httpdPlatTimerDelete(HttpdPlatTimerHandle timer) {
-	xTimerDelete((TimerHandle_t)timer, 0);
+	xTimerDelete((HttpdPlatTimerHandle)timer, 0);
 }
 #endif
 
