@@ -17,6 +17,7 @@ HTTPD_MAX_CONNECTIONS ?= 4
 #For FreeRTOS
 HTTPD_STACKSIZE ?= 2048
 ENABLE_SSL_SUPPORT ?= no
+ENABLE_CORS_SUPPORT ?= no
 #Auto-detect ESP32 build if not given.
 ifneq (,$(wildcard $(SDK_PATH)/include/esp32))
 ESP32 ?= yes
@@ -54,7 +55,7 @@ EXTRA_INCDIR	= ./include \
 
 
 # compiler flags using during compilation of source files
-CFLAGS		= -Os -ggdb -std=c99 -Werror -Wpointer-arith -Wundef -Wall -Wl,-EL -fno-inline-functions \
+CFLAGS		= -Os -ggdb -std=c99 -Werror -Wpointer-arith -Wall -Wl,-EL -fno-inline-functions \
 		-nostdlib -mlongcalls -mtext-section-literals  -D__ets__ -DICACHE_FLASH \
 		-Wno-address -DHTTPD_MAX_CONNECTIONS=$(HTTPD_MAX_CONNECTIONS) -DHTTPD_STACKSIZE=$(HTTPD_STACKSIZE) \
 
@@ -156,6 +157,14 @@ endif
 
 ifeq ("$(ENABLE_SSL_SUPPORT)", "yes")
 CFLAGS		+= -DCONFIG_ESPHTTPD_SSL_SUPPORT=1
+endif
+
+ifeq ("$(ENABLE_CORS_SUPPORT)", "yes")
+CFLAGS		+= -DCONFIG_ESPHTTPD_CORS_SUPPORT=1
+endif
+
+ifeq ("$(ESP32)", "yes")
+CFLAGS		+= -DESP32=1
 endif
 
 vpath %.c $(SRC_DIR)
